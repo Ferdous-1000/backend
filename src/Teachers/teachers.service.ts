@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, MoreThanOrEqual, Between } from "typeorm";
 import { Teacher } from "./teacher.entity";
+import { TeacherDto } from './dto/teacher.dto';
 
 @Injectable()
 export class teachersService {
@@ -9,6 +10,7 @@ export class teachersService {
         @InjectRepository(Teacher)
         private readonly teacherRepo: Repository<Teacher>
     ) {}
+
 
     async getteachers(): Promise<Teacher[]> {
         return this.teacherRepo.find();
@@ -68,4 +70,7 @@ async updateCountry(id: number, country: string): Promise<{ message: string; tea
             where: { country: 'Unknown' },
         });
     }
+    async getAllTeachers(): Promise<Teacher[]> {
+  return this.teacherRepo.find({ relations: ['exams'] });
+}
 }

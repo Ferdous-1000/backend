@@ -1,63 +1,80 @@
-import { Body, Controller, Get, Post, Query, Delete, Put, Param,Patch } from "@nestjs/common";
-import { teachersService } from "./teachers.service";
-import { TeacherDto } from "./dto/teacher.dto";
-import { ValidationPipe } from "@nestjs/common";
-import { Teacher } from "./teacher.entity"; 
+import { Body, Controller, Get, Param, Post, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ExamsService } from 'src/exams/exams.service';
+import { CreateExamDto } from '../exams/dto/create-exam.dto';
+import { QuestionsService } from '../questions/questions.service';
+import { CreateQuestionDto } from '../questions/dto/create-question.dto';
+import { teachersService } from './teachers.service';
+import { TeacherDto } from './dto/teacher.dto';
+import * as bcrypt from 'bcrypt';
 
-@Controller("teachers")
+@Controller('teachers')
+@UseGuards(JwtAuthGuard)
 export class teachersController {
-    constructor(private readonly teachersService: teachersService) {}
+  constructor(
+    private readonly examsService: ExamsService,
+    private readonly questionsService: QuestionsService,
+    private readonly teachersService: teachersService,
+  ) {}
 
-    @Get('all')
-    getteachers(): Promise<Teacher[]> {
-        return this.teachersService.getteachers();
-    }
+  // -------------------------
+  // POST /teachers
+  // -------------------------
+  @Post()
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async addTeacher(@Body() dto: TeacherDto) {
+    const passwordHash = await bcrypt.hash(dto.password, 10);
 
-    @Get()
-    getteachersbyNameandID(
-        @Query('name') name: string,
-        @Query('id') id: number
-    ): Promise<Teacher[]> {
-        return this.teachersService.getteachersByNameandID(name, id);
-    }
+    const teacherData = {
+      ...dto,
+      passwordHash,
+      country: dto.country || 'Unknown',
+    };
 
-    @Delete('delete/:id')
-    deleteteachers(@Param('id') id: number): Promise<string> {
-        return this.teachersService.deleteteachers(id);
-    }
+    return this.teachersService.addteacher(teacherData);
+  }
 
-    @Put('edit/:id')
-    editteachers(
-        @Param('id') id: number,
-        @Body() updatedData: Partial<Teacher>
-    ): Promise<string> {
-        return this.teachersService.editteachers(id, updatedData);
-    }
+  // -------------------------
+  // POST /teachers/:teacherId/exams
+  // Safe version preventing NOT NULL errors
+  // -------------------------
+  @Post(':teacherId/exams')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async createExamForTeacher(
+    @Param('teacherId') teacherId: number,
+    @Body() dto: CreateExamDto,
+  ) {
+    return this.examsService.addExam(+teacherId, dto);
+  }
 
-    @Post("addteacher")
-    addteacher(
-        @Body(new ValidationPipe()) teachersdata: Partial<Teacher>
-    ): Promise<Teacher> {
-        return this.teachersService.addteacher(teachersdata);
-    }
+  // -------------------------
+  // POST /teachers/:teacherId/exams/:examId/questions
+  // -------------------------
+  @Post(':teacherId/exams/:examId/questions')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async addQuestionToTeachersExam(
+    @Param('teacherId') _teacherId: number,
+    @Param('examId') examId: number,
+    @Body() dto: CreateQuestionDto,
+  ) {
+    return this.questionsService.addQuestionToExam(+examId, dto);
+  }
 
-
-@Patch('update-country')
-updateCountry(
-  @Body('id') id: number,
-  @Body('country') country: string,
-): Promise<{ message: string; teacher: Teacher }> {
-  return this.teachersService.updateCountry(id, country);
-
+  // -------------------------
+  // Optional: Get all exams by teacher
+  // -------------------------
+  @Get(':teacherId/exams')
+  async getExamsByTeacher(@Param('teacherId') teacherId: number) {
+    return this.examsService.getExamsByTeacher(+teacherId);
+  }
 }
-    @Get('by-date')
-    getByDate(@Query('date') date: string): Promise<Teacher[]> {
-        return this.teachersService.getByJoiningDate(date);
-    }
 
 
-    @Get('default-country')
-    getdefaultCountry(): Promise<Teacher[]> {
-        return this.teachersService.getWithDefaultCountry();
-    }
-}
+
+/*
+  // (Optional UX) GET /teachers/:teacherId/exams
+  @Get(':teacherId/exams')
+  listExamsOfTeacher(@Param('teacherId') teacherId: number) {
+    // Simple example using ExamsService query
+    return this.examsService.getExamsByTeacher(+teacherId);
+  }*/
